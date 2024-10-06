@@ -15,7 +15,9 @@ Commands:
 - view-release <release_id>
 - add-track <title>
 - update-track <id> <field> <value>
+- add-release <id>
+- update-release <id> <field> <value>
+- release <track_id> <release_id> <track_number>
 - query <sql>
 
 To do:
-- release-track <track_id> <release_id> <track_number>

@@ -38,6 +38,9 @@
     view-release <id>
     add-track <title>
     update-track <id> <field> <value>
+    add-release <id>
+    update-release <id> <field> <value>
+    release <track_id> <release_id> <track_number>
     query <sql>"))
 
 (defn tracks 
@@ -101,6 +104,24 @@
   (let [q (str "UPDATE tracks SET " field "='" value "' WHERE id='" id "'")]
     (sql/execute! DB q)))
 
+(defn add-release
+  "Create a new release"
+  [id]
+  (let [q (str "INSERT INTO releases (id) VALUES ('" id "')")]
+    (sql/execute! DB q)))
+
+(defn update-release
+  "Update release info"
+  [id field value]
+  (let [q (str "UPDATE releases SET " field "='" value "' WHERE id='" id "'")]
+    (sql/execute! DB q)))
+
+(defn release
+  "Add a track to a release"
+  [track-id release-id track-number]
+  (let [q (str "INSERT INTO instances (id, release, track_number) VALUES (" track-id ", " release-id ", " track-number ")")]
+    (sql/execute! DB q)))
+
 (defn query
   "Query the db with SQL. No input checking is done."
   [query]
@@ -120,6 +141,9 @@
     "add-track" (add-track (second _args))
     "update-track" (let [[_ id field value] _args]
                      (update-track id field value)) 
+    "add-release" (add-release (second _args))
+    "update-release" (let [[_ id field value] _args]
+                      (update-release id field value))
     "query" (query (str/join " " (rest _args)))
     (println "Usage: bb -m tracks.cmd <cmd>|help [<args>...]")))
   
