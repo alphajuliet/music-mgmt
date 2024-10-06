@@ -1,5 +1,6 @@
 (ns tracks.cmd
   (:require [pod.babashka.go-sqlite3 :as sql]
+            [clojure.string :as str]
             [cheshire.core :as json]))
 
 (def DB "data/tracks.db")
@@ -12,7 +13,9 @@
     tracks
     releases
     lookup <title>
-    view-release <id>"))
+    view-release <id>
+    update-track <id> <field> <value>
+    query <sql>"))
 
 (defn tracks 
   "List all tracks"
@@ -43,6 +46,20 @@
         rel (sql/query DB (str "SELECT * FROM releases WHERE id='" id "'"))]
     (println (json/generate-string (into (first rel) {:tracks tracks}) {:pretty true}))))
 
+(defn update-track
+  "Update track info"
+  [id field value]
+  (let [q (str "UPDATE tracks SET " field "='" value "' WHERE id='" id "'")]
+    (sql/execute! DB q)))
+
+(defn query
+  "Query the db with SQL. No input checking is done."
+  [query]
+  (as-> query <>
+    (sql/query DB <>)
+    (json/generate-string <> {:pretty true})
+    (println <>)))
+
 (defn -main
   [& _args]
   (case (first _args)
@@ -51,6 +68,9 @@
     "releases" (releases)
     "lookup" (lookup (second _args))
     "view-release" (view-release (second _args))
+    "update-track" (let [[_ id field value] _args]
+                     (update-track id field value)) 
+    "query" (query (str/join " " (rest _args)))
     (println "Usage: bb -m tracks.cmd <cmd>|help [<args>...]")))
   
 ;; The End
