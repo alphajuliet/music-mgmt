@@ -1,7 +1,6 @@
 (ns tracks.cmd
   (:require [pod.babashka.go-sqlite3 :as sql]
-            [cheshire.core :as json]
-            [clojure.pprint :refer [pprint]]))
+            [cheshire.core :as json]))
 
 (def DB "data/tracks.db")
 
@@ -12,7 +11,8 @@
     help
     tracks
     releases
-    lookup <title>"))
+    lookup <title>
+    view-release <id>"))
 
 (defn tracks 
   "List all tracks"
@@ -27,10 +27,21 @@
     (println (json/generate-string (sql/query DB q) {:pretty true}))))
 
 (defn lookup
-  "Lookup tracks by matching on title"
+  "Lookup tracks that match on title"
   [title]
   (let [q (str "SELECT * FROM tracks WHERE title LIKE '%" title "%'")] 
     (println (json/generate-string (sql/query DB q)))))
+
+(defn view-release
+  "Show a release and the tracks"
+  [id]
+  (let [tracks (sql/query DB (str "SELECT title, track_number, length FROM releases "
+                                  "LEFT JOIN instances ON instances.release = releases.id "
+                                  "LEFT JOIN tracks ON instances.id = tracks.id "
+                                  "WHERE releases.id='" id "'"
+                                  "ORDER BY track_number"))
+        rel (sql/query DB (str "SELECT * FROM releases WHERE id='" id "'"))]
+    (println (json/generate-string (into (first rel) {:tracks tracks}) {:pretty true}))))
 
 (defn -main
   [& _args]
@@ -39,6 +50,7 @@
     "tracks" (tracks)
     "releases" (releases)
     "lookup" (lookup (second _args))
+    "view-release" (view-release (second _args))
     (println "Usage: bb -m tracks.cmd <cmd>|help [<args>...]")))
   
 ;; The End

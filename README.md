@@ -12,9 +12,10 @@ Commands:
 - tracks
 - releases
 - lookup <title>
+- view-release <release_id>
 
 To come:
-- view-release <release_id>
 - add <title>
 - update <field> <value>
 - release-track <track_id> <release_id> <track_number>
+- query <sql>
