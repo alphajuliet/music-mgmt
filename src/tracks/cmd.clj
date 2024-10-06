@@ -10,6 +10,11 @@
         min (Integer/parseInt m)
         sec (Integer/parseInt s)]
     (+ (* min 60) sec)))
+
+(defn seconds-to-mmss
+  "Convert seconds to mm:ss"
+  [sec]
+  (str (quot sec 60) ":" (format "%02d" (rem sec 60))))
   
 (def DB "data/tracks.db")
 
@@ -51,8 +56,16 @@
                                   "LEFT JOIN tracks ON instances.id = tracks.id "
                                   "WHERE releases.id='" id "'"
                                   "ORDER BY track_number"))
-        rel (sql/query DB (str "SELECT * FROM releases WHERE id='" id "'"))]
-    (println (json/generate-string (into (first rel) {:tracks tracks}) {:pretty true}))))
+        rel (sql/query DB (str "SELECT * FROM releases WHERE id='" id "'"))
+        duration (->> tracks
+                      (map :length)
+                      (map mmss-to-seconds)
+                      (reduce +)
+                      seconds-to-mmss)]
+    (println (-> rel
+                 first
+                 (into {:tracks tracks :duration duration})
+                 (json/generate-string {:pretty true})))))
 
 (defn update-track
   "Update track info"
