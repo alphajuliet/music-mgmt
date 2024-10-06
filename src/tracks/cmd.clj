@@ -3,6 +3,14 @@
             [clojure.string :as str]
             [cheshire.core :as json]))
 
+(defn mmss-to-seconds
+  "Convert mm:ss to seconds"
+  [mmss]
+  (let [[m s] (str/split mmss #":")
+        min (Integer/parseInt m)
+        sec (Integer/parseInt s)]
+    (+ (* min 60) sec)))
+  
 (def DB "data/tracks.db")
 
 (defn help
