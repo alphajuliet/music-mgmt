@@ -1,6 +1,6 @@
 # cyjet-tracks
 
-Manage my database of Cyjet tracks and releases.
+Manage my SQLite3 database of Cyjet tracks and releases.
 
 This is done largely with the cmd script...
 
@@ -13,9 +13,9 @@ Commands:
 - releases
 - lookup <title>
 - view-release <release_id>
-
-To come:
-- add <title>
-- update <field> <value>
-- release-track <track_id> <release_id> <track_number>
+- add-track <title>
+- update-track <id> <field> <value>
 - query <sql>
+
+To do:
+- release-track <track_id> <release_id> <track_number>

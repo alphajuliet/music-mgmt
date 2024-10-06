@@ -15,6 +15,15 @@
   "Convert seconds to mm:ss"
   [sec]
   (str (quot sec 60) ":" (format "%02d" (rem sec 60))))
+
+(defn current-year []
+  (.getYear (java.time.LocalDate/now)))
+
+(defn wrap-quote
+  [s]
+  (str "'" s "'"))
+
+;; ------------------------------------------------------
   
 (def DB "data/tracks.db")
 
@@ -27,6 +36,7 @@
     releases
     lookup <title>
     view-release <id>
+    add-track <title>
     update-track <id> <field> <value>
     query <sql>"))
 
@@ -46,7 +56,7 @@
   "Lookup tracks that match on title"
   [title]
   (let [q (str "SELECT * FROM tracks WHERE title LIKE '%" title "%'")] 
-    (println (json/generate-string (sql/query DB q)))))
+    (println (json/generate-string (sql/query DB q) {:pretty true}))))
 
 (defn view-release
   "Show a release and the tracks"
@@ -66,6 +76,24 @@
                  first
                  (into {:tracks tracks :duration duration})
                  (json/generate-string {:pretty true})))))
+
+(defn add-track
+  "Create a new track with minimal info"
+  [title]
+  (let [info {:artist "Cyjet"
+              :type "Original"
+              :title title
+              :year (current-year)}
+        fields (->> info
+                    keys
+                    (map name)
+                    (str/join ", "))
+        values (->> info
+                    vals
+                    (map wrap-quote)
+                    (str/join ", "))
+        q (str "INSERT INTO tracks (" fields ") VALUES (" values ")")]
+    (sql/execute! DB q)))
 
 (defn update-track
   "Update track info"
@@ -89,6 +117,7 @@
     "releases" (releases)
     "lookup" (lookup (second _args))
     "view-release" (view-release (second _args))
+    "add-track" (add-track (second _args))
     "update-track" (let [[_ id field value] _args]
                      (update-track id field value)) 
     "query" (query (str/join " " (rest _args)))
