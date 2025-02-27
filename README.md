@@ -6,6 +6,8 @@ Usage:
 ```
 bb -m mmgt.mm <command> [ <args...> ]
 ```
+
+```
 Commands:
 - help
 
@@ -24,3 +26,4 @@ Commands:
 
 - query <sql>
 - export-data <filename>
+```
