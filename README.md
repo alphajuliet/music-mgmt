@@ -1,23 +1,26 @@
 # cyjet-tracks
 
-Manage my SQLite3 database of Cyjet tracks and releases.
+Manage my SQLite3 database of tracks and releases with the `mm` Babashka script. Output is generally in JSON, for piping into `jq` or other processing.
 
-This is done largely with the cmd script...
-
+Usage:
 ```
-bb -m tracks.cmd <command> [<args...>]
+bb -m mmgt.mm <command> [ <args...> ]
 ```
 Commands:
 - help
+
 - tracks
-- releases
 - lookup <title>
-- view-release <release_id>
+- search <field> <value>
+- view-track <id>
 - add-track <title>
 - update-track <id> <field> <value>
+
+- releases
+- view-release <release_id>
 - add-release <id>
 - update-release <id> <field> <value>
 - release <track_id> <release_id> <track_number>
-- query <sql>
 
-To do:
+- query <sql>
+- export-data <filename>

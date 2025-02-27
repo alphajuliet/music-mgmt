@@ -1,4 +1,4 @@
-(ns tracks.cmd
+(ns mmgt.mm
   (:require [pod.babashka.go-sqlite3 :as sql]
             [clojure.string :as str]
             [cheshire.core :as json]))
