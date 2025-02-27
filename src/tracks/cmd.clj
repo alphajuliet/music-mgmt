@@ -32,17 +32,22 @@
   []
   (println "Commands:
     help
+     
     tracks
-    releases
     lookup <title>
+    search <field> <value>
     add-track <title>
     view-track <id>
     update-track <id> <field> <value>
+
+    releases
     add-release <id>
     view-release <id>
     update-release <id> <field> <value>
     release <track_id> <release_id> <track_number>
-    query <sql>"))
+
+    query <sql>
+    export-data <filename>"))
 
 (defn tracks 
   "List all tracks"
@@ -61,6 +66,15 @@
   [title]
   (let [q "SELECT * FROM tracks WHERE title LIKE ?"] 
     (println (json/generate-string (sql/query DB [q (str "%" title "%")]) {:pretty true}))))
+
+(defn search
+  "Search tracks by any field"
+  [field value]
+  (let [valid-fields #{"artist" "type" "title" "year"}]
+    (if (contains? valid-fields field)
+      (let [q (str "SELECT * FROM tracks WHERE " field " LIKE ?")]
+        (println (json/generate-string (sql/query DB [q (str "%" value "%")]) {:pretty true})))
+      (println "Invalid field. Valid fields are:" (str/join ", " valid-fields)))))
 
 (defn view-track
   "View a track with a given ID"
@@ -156,6 +170,16 @@
     (json/generate-string <> {:pretty true})
     (println <>)))
 
+(defn export-data [filename]
+  (let [tracks-data (sql/query DB "SELECT * FROM tracks")
+        releases-data (sql/query DB "SELECT * FROM releases")
+        instances-data (sql/query DB "SELECT * FROM instances")
+        all-data {:tracks tracks-data
+                  :releases releases-data
+                  :instances instances-data}]
+    (spit filename (json/generate-string all-data {:pretty true}))
+    (println "Data exported to" filename)))
+
 (defn -main
   [& _args]
   (case (first _args)
@@ -163,6 +187,8 @@
     "tracks" (tracks)
     "releases" (releases)
     "lookup" (lookup (second _args))
+    "search" (let [[_ field value] _args]
+               (search field value))
     "view-track" (view-track (second _args))
     "view-release" (view-release (second _args))
     "add-track" (add-track (second _args))
@@ -174,6 +200,7 @@
     "release" (let [[_ track-id release-id track-number] _args]
                 (release track-id release-id track-number))
     "query" (query (str/join " " (rest _args)))
+    "export-data" (export-data (second _args))
     ;; else
     (println "Usage: bb -m tracks.cmd <cmd>|help [<args>...]")))
 
