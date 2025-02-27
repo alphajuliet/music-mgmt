@@ -35,10 +35,11 @@
     tracks
     releases
     lookup <title>
-    view-release <id>
     add-track <title>
+    view-track <id>
     update-track <id> <field> <value>
     add-release <id>
+    view-release <id>
     update-release <id> <field> <value>
     release <track_id> <release_id> <track_number>
     query <sql>"))
@@ -61,10 +62,16 @@
   (let [q (str "SELECT * FROM tracks WHERE title LIKE '%" title "%'")] 
     (println (json/generate-string (sql/query DB q) {:pretty true}))))
 
+(defn view-track
+  "View a track with a given ID"
+  [id]
+  (let [q (str "SELECT * FROM tracks WHERE id LIKE '%" id "%'")] 
+    (println (json/generate-string (sql/query DB q) {:pretty true}))))
+
 (defn view-release
   "Show a release and the tracks"
   [id]
-  (let [tracks (sql/query DB (str "SELECT title, track_number, length FROM releases "
+  (let [tracks (sql/query DB (str "SELECT title, track_number, tracks.id, length FROM releases "
                                   "LEFT JOIN instances ON instances.release = releases.id "
                                   "LEFT JOIN tracks ON instances.id = tracks.id "
                                   "WHERE releases.id='" id "'"
@@ -86,6 +93,7 @@
   (let [info {:artist "Cyjet"
               :type "Original"
               :title title
+              :length "00:00"
               :year (current-year)}
         fields (->> info
                     keys
@@ -107,19 +115,19 @@
 (defn add-release
   "Create a new release"
   [id]
-  (let [q (str "INSERT INTO releases (id) VALUES ('" id "')")]
+  (let [q (str "INSERT INTO releases (id, status) VALUES ('" id "', 'WIP')")]
     (sql/execute! DB q)))
 
 (defn update-release
   "Update release info"
   [id field value]
-  (let [q (str "UPDATE releases SET " field "='" value "' WHERE id='" id "'")]
+  (let [q (str "UPDATE releases SET '" field "'='" value "' WHERE ID='" id "'")]
     (sql/execute! DB q)))
 
 (defn release
   "Add a track to a release"
   [track-id release-id track-number]
-  (let [q (str "INSERT INTO instances (id, release, track_number) VALUES (" track-id ", " release-id ", " track-number ")")]
+  (let [q (str "INSERT INTO instances (id, release, track_number) VALUES (" track-id ", '" release-id "', " track-number ")")]
     (sql/execute! DB q)))
 
 (defn query
@@ -137,14 +145,18 @@
     "tracks" (tracks)
     "releases" (releases)
     "lookup" (lookup (second _args))
+    "view-track" (view-track (second _args))
     "view-release" (view-release (second _args))
     "add-track" (add-track (second _args))
     "update-track" (let [[_ id field value] _args]
                      (update-track id field value)) 
     "add-release" (add-release (second _args))
     "update-release" (let [[_ id field value] _args]
-                      (update-release id field value))
+                       (update-release id field value)) 
+    "release" (let [[_ track-id release-id track-number] _args]
+                (release track-id release-id track-number))
     "query" (query (str/join " " (rest _args)))
+    ;; else
     (println "Usage: bb -m tracks.cmd <cmd>|help [<args>...]")))
-  
+
 ;; The End
