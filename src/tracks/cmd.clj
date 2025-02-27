@@ -59,24 +59,24 @@
 (defn lookup
   "Lookup tracks that match on title"
   [title]
-  (let [q (str "SELECT * FROM tracks WHERE title LIKE '%" title "%'")] 
-    (println (json/generate-string (sql/query DB q) {:pretty true}))))
+  (let [q "SELECT * FROM tracks WHERE title LIKE ?"] 
+    (println (json/generate-string (sql/query DB [q (str "%" title "%")]) {:pretty true}))))
 
 (defn view-track
   "View a track with a given ID"
   [id]
-  (let [q (str "SELECT * FROM tracks WHERE id LIKE '%" id "%'")] 
-    (println (json/generate-string (sql/query DB q) {:pretty true}))))
+  (let [q (str "SELECT * FROM tracks WHERE id = ?")] 
+    (println (json/generate-string (sql/query DB [q id]) {:pretty true}))))
 
 (defn view-release
   "Show a release and the tracks"
   [id]
-  (let [tracks (sql/query DB (str "SELECT title, track_number, tracks.id, length FROM releases "
-                                  "LEFT JOIN instances ON instances.release = releases.id "
-                                  "LEFT JOIN tracks ON instances.id = tracks.id "
-                                  "WHERE releases.id='" id "'"
-                                  "ORDER BY track_number"))
-        rel (sql/query DB (str "SELECT * FROM releases WHERE id='" id "'"))
+  (let [tracks (sql/query DB ["SELECT title, track_number, tracks.id, length FROM releases
+                              LEFT JOIN instances ON instances.release = releases.id
+                              LEFT JOIN tracks ON instances.id = tracks.id
+                              WHERE releases.id = ?
+                              ORDER BY track_number" id])
+        rel (sql/query DB ["SELECT * FROM releases WHERE id = ?" id])
         duration (->> tracks
                       (map :length)
                       (map mmss-to-seconds)
@@ -90,45 +90,63 @@
 (defn add-track
   "Create a new track with minimal info"
   [title]
-  (let [info {:artist "Cyjet"
-              :type "Original"
-              :title title
-              :length "00:00"
-              :year (current-year)}
-        fields (->> info
-                    keys
-                    (map name)
-                    (str/join ", "))
-        values (->> info
-                    vals
-                    (map wrap-quote)
-                    (str/join ", "))
-        q (str "INSERT INTO tracks (" fields ") VALUES (" values ")")]
-    (sql/execute! DB q)))
+  (try
+    (let [info {:artist "Cyjet"
+                :type "Original"
+                :title title
+                :length "00:00"
+                :year (current-year)}
+          fields (->> info
+                      keys
+                      (map name)
+                      (str/join ", "))
+          values (->> info
+                      vals
+                      (map wrap-quote)
+                      (str/join ", "))]
+      (sql/execute! DB ["INSERT INTO tracks (?) VALUES (?)" fields values]))
+    (catch Exception e
+      (println (.getMessage e)))))
 
 (defn update-track
   "Update track info"
   [id field value]
-  (let [q (str "UPDATE tracks SET " field "='" value "' WHERE id='" id "'")]
-    (sql/execute! DB q)))
+  (try
+    (let [q (str "UPDATE tracks SET " field " = ? WHERE id = ?")]
+      (sql/execute! DB [q value id])
+      (println "OK"))
+    (catch Exception e
+      (println (.getMessage e)))))
 
 (defn add-release
   "Create a new release"
   [id]
-  (let [q (str "INSERT INTO releases (id, status) VALUES ('" id "', 'WIP')")]
-    (sql/execute! DB q)))
+  (try
+    (let [q "INSERT INTO releases (id, status) VALUES (?, 'WIP')"]
+      (sql/execute! DB [q id]))
+    (println "OK")
+    (catch Exception e
+      (println (.getMessage e)))))
 
 (defn update-release
   "Update release info"
   [id field value]
-  (let [q (str "UPDATE releases SET '" field "'='" value "' WHERE ID='" id "'")]
-    (sql/execute! DB q)))
+  (try
+    (let [q (str "UPDATE releases SET " field " = ? WHERE id = ?")]
+      (sql/execute! DB [q value id])
+      (println "OK"))
+    (catch Exception e
+      (println (.getMessage e)))))
 
 (defn release
   "Add a track to a release"
   [track-id release-id track-number]
-  (let [q (str "INSERT INTO instances (id, release, track_number) VALUES (" track-id ", '" release-id "', " track-number ")")]
-    (sql/execute! DB q)))
+  (try
+    (let [q "INSERT INTO instances (id, release, track_number) VALUES (?, ?, ?)"]
+      (sql/execute! DB [q track-id release-id track-number])
+      (println "OK"))
+    (catch Exception e
+      (println (.getMessage e)))))
 
 (defn query
   "Query the db with SQL. No input checking is done."
