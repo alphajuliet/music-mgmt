@@ -27,29 +27,7 @@
   
 (def DB "data/tracks.db")
 
-(defn help
-  "Print help message"
-  []
-  (println "Commands:
-    help
-     
-    tracks
-    lookup <title>
-    search <field> <value>
-    add-track <title>
-    view-track <id>
-    update-track <id> <field> <value>
-
-    releases
-    add-release <id>
-    view-release <id>
-    update-release <id> <field> <value>
-    release <track_id> <release_id> <track_number>
-
-    query <sql>
-    export-data <filename>"))
-
-(defn tracks 
+(defn tracks
   "List all tracks"
   []
   (let [q "SELECT * from tracks"]
@@ -64,7 +42,7 @@
 (defn lookup
   "Lookup tracks that match on title"
   [title]
-  (let [q "SELECT * FROM tracks WHERE title LIKE ?"] 
+  (let [q "SELECT * FROM tracks WHERE title LIKE ?"]
     (println (json/generate-string (sql/query DB [q (str "%" title "%")]) {:pretty true}))))
 
 (defn search
@@ -79,7 +57,7 @@
 (defn view-track
   "View a track with a given ID"
   [id]
-  (let [q (str "SELECT * FROM tracks WHERE id = ?")] 
+  (let [q (str "SELECT * FROM tracks WHERE id = ?")]
     (println (json/generate-string (sql/query DB [q id]) {:pretty true}))))
 
 (defn view-release
@@ -180,6 +158,28 @@
     (spit filename (json/generate-string all-data {:pretty true}))
     (println "Data exported to" filename)))
 
+(defn help
+  "Print help message"
+  []
+  (println "Commands:
+    help
+     
+    tracks
+    lookup <title>
+    search <field> <value>
+    add-track <title>
+    view-track <id>
+    update-track <id> <field> <value>
+
+    releases
+    add-release <id>
+    view-release <id>
+    update-release <id> <field> <value>
+    release <track_id> <release_id> <track_number>
+
+    query <sql>
+    export-data <filename>"))
+
 (defn -main
   [& _args]
   (case (first _args)
@@ -193,10 +193,10 @@
     "view-release" (view-release (second _args))
     "add-track" (add-track (second _args))
     "update-track" (let [[_ id field value] _args]
-                     (update-track id field value)) 
+                     (update-track id field value))
     "add-release" (add-release (second _args))
     "update-release" (let [[_ id field value] _args]
-                       (update-release id field value)) 
+                       (update-release id field value))
     "release" (let [[_ track-id release-id track-number] _args]
                 (release track-id release-id track-number))
     "query" (query (str/join " " (rest _args)))
