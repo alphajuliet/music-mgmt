@@ -1,7 +1,20 @@
 (ns mmgt.mm
   (:require [pod.babashka.go-sqlite3 :as sql]
             [clojure.string :as str]
-            [cheshire.core :as json]))
+            [cheshire.core :as json]
+            [clojure.tools.cli :refer [parse-opts]]))
+
+(def mmgt-version "0.1.0")
+
+(def cli-options
+  [["-h" "--help" "Show help information"]
+   ["-v" "--version" "Show version information"]
+   ["-f" "--format FORMAT" "Output format: json (default), edn, or plain"
+    :default "json"
+    :validate [#(contains? #{"json" "edn" "plain"} %) "Must be one of: json, edn, plain"]]
+   ["-d" "--db PATH" "Database file path"
+    :default "data/tracks.db"]
+   [nil "--verbose" "Enable verbose output"]])
 
 (defn mmss-to-seconds
   "Convert mm:ss to seconds"
@@ -24,66 +37,92 @@
   (str "'" s "'"))
 
 ;; ------------------------------------------------------
-  
-(def DB "data/tracks.db")
+
+(defn format-output
+  "Format data according to the specified format"
+  [data format]
+  (case format
+    "json" (json/generate-string data {:pretty true})
+    "edn" (pr-str data)
+    "plain" (cond
+              (map? data) (str/join "\n" (map #(str (name (key %)) ": " (val %)) data))
+              (coll? data) (str/join "\n" (map #(str/join " | " (map (fn [[k v]] (str v)) %)) data))
+              :else (str data))
+    ;; default to json
+    (json/generate-string data {:pretty true})))
+
+(defn print-output
+  "Print data according to the specified format"
+  [data & {:keys [format] :or {format "json"}}]
+  (println (format-output data format)))
+
+(defn get-db [options]
+  (or (:db options) "data/tracks.db"))
 
 (defn tracks
   "List all tracks"
-  []
-  (let [q "SELECT * from tracks"]
-    (println (json/generate-string (sql/query DB q) {:pretty true}))))
+  [options]
+  (let [db (get-db options)
+        q "SELECT * from tracks"]
+    (print-output (sql/query db q) :format (:format options))))
 
 (defn releases
   "List all releases"
-  []
-  (let [q "SELECT * from releases ORDER BY id"]
-    (println (json/generate-string (sql/query DB q) {:pretty true}))))
+  [options]
+  (let [db (get-db options)
+        q "SELECT * from releases ORDER BY id"]
+    (print-output (sql/query db q) :format (:format options))))
 
 (defn lookup
   "Lookup tracks that match on title"
-  [title]
-  (let [q "SELECT * FROM tracks WHERE title LIKE ?"]
-    (println (json/generate-string (sql/query DB [q (str "%" title "%")]) {:pretty true}))))
+  [title options]
+  (let [db (get-db options)
+        q "SELECT * FROM tracks WHERE title LIKE ?"]
+    (print-output (sql/query db [q (str "%" title "%")]) :format (:format options))))
 
 (defn search
   "Search tracks by any field"
-  [field value]
-  (let [valid-fields #{"artist" "type" "title" "year"}]
+  [field value options]
+  (let [db (get-db options)
+        valid-fields #{"artist" "type" "title" "year"}]
     (if (contains? valid-fields field)
       (let [q (str "SELECT * FROM tracks WHERE " field " LIKE ?")]
-        (println (json/generate-string (sql/query DB [q (str "%" value "%")]) {:pretty true})))
+        (print-output (sql/query db [q (str "%" value "%")]) :format (:format options)))
       (println "Invalid field. Valid fields are:" (str/join ", " valid-fields)))))
 
 (defn view-track
   "View a track with a given ID"
-  [id]
-  (let [q (str "SELECT * FROM tracks WHERE id = ?")]
-    (println (json/generate-string (sql/query DB [q id]) {:pretty true}))))
+  [id options]
+  (let [db (get-db options)
+        q (str "SELECT * FROM tracks WHERE id = ?")]
+    (print-output (sql/query db [q id]) :format (:format options))))
 
 (defn view-release
   "Show a release and the tracks"
-  [id]
-  (let [tracks (sql/query DB ["SELECT title, track_number, tracks.id, length FROM releases
+  [id options]
+  (let [db (get-db options)
+        tracks (sql/query db ["SELECT title, track_number, tracks.id, length FROM releases
                               LEFT JOIN instances ON instances.release = releases.id
                               LEFT JOIN tracks ON instances.id = tracks.id
                               WHERE releases.id = ?
                               ORDER BY track_number" id])
-        rel (sql/query DB ["SELECT * FROM releases WHERE id = ?" id])
+        rel (sql/query db ["SELECT * FROM releases WHERE id = ?" id])
         duration (->> tracks
                       (map :length)
                       (map mmss-to-seconds)
                       (reduce +)
                       seconds-to-mmss)]
-    (println (-> rel
-                 first
-                 (into {:tracks tracks :duration duration})
-                 (json/generate-string {:pretty true})))))
+    (print-output (-> rel
+                      first
+                      (into {:tracks tracks :duration duration}))
+                  :format (:format options))))
 
 (defn add-track
   "Create a new track with minimal info"
-  [title]
+  [title options]
   (try
-    (let [info {:artist "Cyjet"
+    (let [db (get-db options)
+          info {:artist "Cyjet"
                 :type "Original"
                 :title title
                 :length "00:00"
@@ -96,112 +135,144 @@
                       vals
                       (map wrap-quote)
                       (str/join ", "))]
-      (sql/execute! DB ["INSERT INTO tracks (?) VALUES (?)" fields values]))
+      (sql/execute! db ["INSERT INTO tracks (?) VALUES (?)" fields values])
+      (println "OK"))
     (catch Exception e
       (println (.getMessage e)))))
 
 (defn update-track
   "Update track info"
-  [id field value]
+  [id field value options]
   (try
-    (let [q (str "UPDATE tracks SET " field " = ? WHERE id = ?")]
-      (sql/execute! DB [q value id])
+    (let [db (get-db options)
+          q (str "UPDATE tracks SET " field " = ? WHERE id = ?")]
+      (sql/execute! db [q value id])
       (println "OK"))
     (catch Exception e
       (println (.getMessage e)))))
 
 (defn add-release
   "Create a new release"
-  [id]
+  [id options]
   (try
-    (let [q "INSERT INTO releases (id, status) VALUES (?, 'WIP')"]
-      (sql/execute! DB [q id]))
-    (println "OK")
+    (let [db (get-db options)
+          q "INSERT INTO releases (id, status) VALUES (?, 'WIP')"]
+      (sql/execute! db [q id])
+      (println "OK"))
     (catch Exception e
       (println (.getMessage e)))))
 
 (defn update-release
   "Update release info"
-  [id field value]
+  [id field value options]
   (try
-    (let [q (str "UPDATE releases SET " field " = ? WHERE id = ?")]
-      (sql/execute! DB [q value id])
+    (let [db (get-db options)
+          q (str "UPDATE releases SET " field " = ? WHERE id = ?")]
+      (sql/execute! db [q value id])
       (println "OK"))
     (catch Exception e
       (println (.getMessage e)))))
 
 (defn release
   "Add a track to a release"
-  [track-id release-id track-number]
+  [track-id release-id track-number options]
   (try
-    (let [q "INSERT INTO instances (id, release, track_number) VALUES (?, ?, ?)"]
-      (sql/execute! DB [q track-id release-id track-number])
+    (let [db (get-db options)
+          q "INSERT INTO instances (id, release, track_number) VALUES (?, ?, ?)"]
+      (sql/execute! db [q track-id release-id track-number])
       (println "OK"))
     (catch Exception e
       (println (.getMessage e)))))
 
 (defn query
   "Query the db with SQL. No input checking is done."
-  [query]
-  (as-> query <>
-    (sql/query DB <>)
-    (json/generate-string <> {:pretty true})
-    (println <>)))
+  [query-str options]
+  (let [db (get-db options)]
+    (as-> query-str <>
+      (sql/query db <>)
+      (print-output <> :format (:format options)))))
 
-(defn export-data [filename]
-  (let [tracks-data (sql/query DB "SELECT * FROM tracks")
-        releases-data (sql/query DB "SELECT * FROM releases")
-        instances-data (sql/query DB "SELECT * FROM instances")
+(defn export-data [filename options]
+  (let [db (get-db options)
+        tracks-data (sql/query db "SELECT * FROM tracks")
+        releases-data (sql/query db "SELECT * FROM releases")
+        instances-data (sql/query db "SELECT * FROM instances")
         all-data {:tracks tracks-data
                   :releases releases-data
                   :instances instances-data}]
     (spit filename (json/generate-string all-data {:pretty true}))
     (println "Data exported to" filename)))
 
+(defn usage [options-summary]
+  (str "Music Management CLI
+
+Usage: bb -m mmgt.mm [options] command [args...]
+
+Options:
+" options-summary "
+
+Commands:
+    help                                 Show this help
+    version                              Show version information
+     
+    tracks                               List all tracks
+    lookup <title>                       Lookup tracks by title
+    search <field> <value>               Search tracks by field
+    add-track <title>                    Add a new track
+    view-track <id>                      View a track
+    update-track <id> <field> <value>    Update track info
+
+    releases                             List all releases
+    add-release <id>                     Add a new release
+    view-release <id>                    View a release
+    update-release <id> <field> <value>  Update release info
+    release <track_id> <release_id> <track_number>  Add track to release
+
+    query <sql>                          Run SQL query
+    export-data <filename>               Export data to file"))
+
 (defn help
   "Print help message"
+  [options]
+  (println (usage (:summary options))))
+
+(defn version
+  "Print version information"
   []
-  (println "Commands:
-    help
-     
-    tracks
-    lookup <title>
-    search <field> <value>
-    add-track <title>
-    view-track <id>
-    update-track <id> <field> <value>
-
-    releases
-    add-release <id>
-    view-release <id>
-    update-release <id> <field> <value>
-    release <track_id> <release_id> <track_number>
-
-    query <sql>
-    export-data <filename>"))
+  (println "Music Management CLI version" mmgt-version))
 
 (defn -main
-  [& _args]
-  (case (first _args)
-    "help" (help)
-    "tracks" (tracks)
-    "releases" (releases)
-    "lookup" (lookup (second _args))
-    "search" (let [[_ field value] _args]
-               (search field value))
-    "view-track" (view-track (second _args))
-    "view-release" (view-release (second _args))
-    "add-track" (add-track (second _args))
-    "update-track" (let [[_ id field value] _args]
-                     (update-track id field value))
-    "add-release" (add-release (second _args))
-    "update-release" (let [[_ id field value] _args]
-                       (update-release id field value))
-    "release" (let [[_ track-id release-id track-number] _args]
-                (release track-id release-id track-number))
-    "query" (query (str/join " " (rest _args)))
-    "export-data" (export-data (second _args))
-    ;; else
-    (println "Usage: bb -m tracks.cmd <cmd>|help [<args>...]")))
+  [& args]
+  (let [{:keys [options arguments errors summary]} (parse-opts args cli-options)]
+    (cond
+      ;; Handle global flags
+      (:help options) (do (println (usage summary)) 0)
+      (:version options) (do (version) 0)
+      errors (do (println "Error:" (str/join "\n" errors)) 1)
+      
+      ;; Handle commands
+      :else (let [cmd (first arguments)
+                  cmd-args (rest arguments)]
+              (case cmd
+                "help" (help {:summary summary})
+                "version" (version)
+                "tracks" (tracks options)
+                "releases" (releases options)
+                "lookup" (lookup (first cmd-args) options)
+                "search" (search (first cmd-args) (second cmd-args) options)
+                "view-track" (view-track (first cmd-args) options)
+                "view-release" (view-release (first cmd-args) options)
+                "add-track" (add-track (first cmd-args) options)
+                "update-track" (update-track (first cmd-args) (second cmd-args) (nth cmd-args 2) options)
+                "add-release" (add-release (first cmd-args) options)
+                "update-release" (update-release (first cmd-args) (second cmd-args) (nth cmd-args 2) options)
+                "release" (release (first cmd-args) (second cmd-args) (nth cmd-args 2) options)
+                "query" (query (str/join " " cmd-args) options)
+                "export-data" (export-data (first cmd-args) options)
+                ;; else
+                (do
+                  (println "Unknown command:" cmd)
+                  (println (usage summary))
+                  1))))))
 
 ;; The End
