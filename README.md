@@ -1,13 +1,19 @@
-# cyjet-tracks
+# Music Management CLI
 
-Manage my SQLite3 database of tracks and releases with the `mm` Babashka script. Output is generally in JSON, for piping into `jq` or other processing.
-
-Usage:
-```
-bb -m mmgt.mm <command> [ <args...> ]
-```
+A Babashka script to manage my database of tracks and releases. Output is JSON by default 
+but also supports EDN, ASCII tables, and plain text. JSON is best for piping into `jq` or 
+other processing.
 
 ```
+Usage: bb -m mmgt.mm [options] command [args...]
+
+Options:
+  -h, --help                           Show help information
+  -v, --version                        Show version information
+  -f, --format FORMAT  json            Output format: json (default), edn, plain, or table
+  -d, --db PATH        data/tracks.db  Database file path
+      --verbose                        Enable verbose output
+
 Commands:
 - help
 
