@@ -1,9 +1,10 @@
 (ns mmgt.mm
-  (:require [pod.babashka.go-sqlite3 :as sql]
+  (:require [cheshire.core :as json]
             [clojure.string :as str]
-            [cheshire.core :as json]
             [clojure.tools.cli :refer [parse-opts]]
-            [mmgt.output :as output]))
+            [mmgt.output :as output]
+            [babashka.fs :as fs]
+            [pod.babashka.go-sqlite3 :as sql]))
 
 (def mmgt-version "0.1.0")
 
@@ -15,6 +16,8 @@
     :validate [#(contains? #{"json" "edn" "plain" "table"} %) "Must be one of: json, edn, plain, table"]]
    ["-d" "--db PATH" "Database file path"
     :default "data/tracks.db"]
+   ["-b" "--backup-dir PATH" "Backup directory path"
+    :default "data/backup"]
    [nil "--verbose" "Enable verbose output"]])
 
 (defn mmss-to-seconds
@@ -32,6 +35,12 @@
 
 (defn current-year []
   (.getYear (java.time.LocalDate/now)))
+
+(defn current-date
+  "Return the current date in the format YYYY-MM-DD"
+  []
+  (let [date (java.time.LocalDate/now)]
+    (format "%04d-%02d-%02d" (.getYear date) (.getMonthValue date) (.getDayOfMonth date))))
 
 (defn wrap-quote
   [s]
@@ -190,6 +199,18 @@
     (spit filename (json/generate-string all-data {:pretty true}))
     (println "Data exported to" filename)))
 
+(defn backup
+  "Create a backup of the database file to the nominated folder"
+  [options]
+  (let [db-file (:db-file options)
+        backup-dir (:backup-dir options)
+        timestamp (current-date)
+        db-backup (fs/file-name (str/replace db-file #"\.db$" (str "_" timestamp ".db")))
+        backup-file (fs/path backup-dir db-backup)]
+    (fs/create-dirs backup-dir)
+    (fs/copy db-file backup-file {:replace-existing true})
+    (println "Backup created:" (str backup-file))))
+
 (defn usage [options-summary]
   (str "Music Management CLI
 
@@ -216,7 +237,8 @@ Commands:
     release <track_id> <release_id> <track_number>  Add track to release
 
     query <sql>                          Run SQL query
-    export-data <filename>               Export data to file"))
+    export-data <filename>               Export data to file
+    backup                               Create a backup of the database"))
 
 (defn help
   "Print help message"
@@ -256,6 +278,7 @@ Commands:
                 "release" (release (first cmd-args) (second cmd-args) (nth cmd-args 2) options)
                 "query" (query (str/join " " cmd-args) options)
                 "export-data" (export-data (first cmd-args) options)
+                "backup" (backup {:db-file (:db options) :backup-dir (:backup-dir options)})
                 ;; else
                 (do
                   (println "Unknown command:" cmd)
