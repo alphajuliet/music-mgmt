@@ -97,7 +97,7 @@
   "Show a release and the tracks"
   [id options]
   (let [db (get-db options)
-        tracks (sql/query db ["SELECT title, track_number, tracks.id, length FROM releases
+        tracks (sql/query db ["SELECT title, track_number, tracks.id, ISRC, length FROM releases
                               LEFT JOIN instances ON instances.release = releases.id
                               LEFT JOIN tracks ON instances.id = tracks.id
                               WHERE releases.id = ?
