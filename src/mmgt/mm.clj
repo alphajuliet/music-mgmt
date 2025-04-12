@@ -44,7 +44,7 @@
 
 (defn wrap-quote
   [s]
-  (str "'" s "'"))
+  (str \" s \"))
 
 ;; ------------------------------------------------------
 (defn print-output
@@ -123,18 +123,13 @@
                 :title title
                 :length "00:00"
                 :year (current-year)}
-          fields (->> info
-                      keys
-                      (map name)
-                      (str/join ", "))
-          values (->> info
-                      vals
-                      (map wrap-quote)
-                      (str/join ", "))]
-      (sql/execute! db ["INSERT INTO tracks (?) VALUES (?)" fields values])
+          fields (->> info keys (map name) (str/join ", "))
+          values (->> info vals (map wrap-quote) (str/join ", "))
+          q (str "INSERT INTO tracks (" fields ") VALUES (" values ")")]
+      (sql/execute! db q)
       (println "OK"))
     (catch Exception e
-      (println (.getMessage e)))))
+      (println "Error: " (.getMessage e)))))
 
 (defn update-track
   "Update track info"
