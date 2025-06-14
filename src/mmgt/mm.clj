@@ -6,7 +6,7 @@
             [babashka.fs :as fs]
             [pod.babashka.go-sqlite3 :as sql]))
 
-(def mmgt-version "0.1.0")
+(def mmgt-version "0.1.1")
 
 (def cli-options
   [["-h" "--help" "Show help information"]
@@ -55,7 +55,7 @@
 (defn get-db [options]
   (or (:db options) "data/tracks.db"))
 
-(defn tracks
+(defn all-tracks
   "List all tracks"
   [options]
   (let [db (get-db options)
@@ -112,6 +112,17 @@
                       first
                       (into {:tracks tracks :duration duration}))
                   :format (:format options))))
+
+(defn tracks
+  "Just return the track list for a given release"
+  [id options]
+  (let [db (get-db options)
+        tracks (sql/query db ["SELECT title, track_number, tracks.id, length FROM releases
+                              LEFT JOIN instances ON instances.release = releases.id
+                              LEFT JOIN tracks ON instances.id = tracks.id
+                              WHERE releases.id = ?
+                              ORDER BY track_number" id])]
+    (print-output tracks :format (:format options))))
 
 (defn add-track
   "Create a new track with minimal info"
@@ -197,7 +208,7 @@
 (defn backup
   "Create a backup of the database file to the nominated folder"
   [options]
-  (let [db-file (:db-file options)
+  (let [db-file (get-db options)
         backup-dir (:backup-dir options)
         timestamp (current-date)
         db-backup (fs/file-name (str/replace db-file #"\.db$" (str "_" timestamp ".db")))
@@ -218,7 +229,7 @@ Commands:
     help                                 Show this help
     version                              Show version information
      
-    tracks                               List all tracks
+    all-tracks                           List all tracks
     lookup <title>                       Lookup tracks by title
     search <field> <value>               Search tracks by field
     add-track <title>                    Add a new track
@@ -228,6 +239,7 @@ Commands:
     releases                             List all releases
     add-release <id>                     Add a new release
     view-release <id>                    View a release
+    tracks <id>                          List the tracks on a release
     update-release <id> <field> <value>  Update release info
     release <track_id> <release_id> <track_number>  Add track to release
 
@@ -260,12 +272,13 @@ Commands:
               (case cmd
                 "help" (help {:summary summary})
                 "version" (version)
-                "tracks" (tracks options)
+                "all-tracks" (all-tracks options)
                 "releases" (releases options)
                 "lookup" (lookup (first cmd-args) options)
                 "search" (search (first cmd-args) (second cmd-args) options)
                 "view-track" (view-track (first cmd-args) options)
                 "view-release" (view-release (first cmd-args) options)
+                "tracks" (tracks (first cmd-args) options)
                 "add-track" (add-track (first cmd-args) options)
                 "update-track" (update-track (first cmd-args) (second cmd-args) (nth cmd-args 2) options)
                 "add-release" (add-release (first cmd-args) options)

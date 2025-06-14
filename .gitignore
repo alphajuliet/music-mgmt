@@ -2,3 +2,5 @@ data/
 venv/
 .calva/
 .clj-kondo/
+.lsp/
+
