@@ -147,9 +147,12 @@
   [id field value options]
   (try
     (let [db (get-db options)
-          q (str "UPDATE tracks SET " field " = ? WHERE id = ?")]
-      (sql/execute! db [q value id])
-      (println "OK"))
+          valid-fields #{"id" "title" "type" "artist" "year" "length" "bpm" "ISRC" "Genre" "song_fname"}]
+      (if (contains? valid-fields field)
+        (let [q (str "UPDATE tracks SET " field " = ? WHERE id = ?")]
+          (sql/execute! db [q value id])
+          (println "OK"))
+        (println "Invalid field. Valid fields are:" (str/join ", " valid-fields))))
     (catch Exception e
       (println (.getMessage e)))))
 
@@ -169,9 +172,12 @@
   [id field value options]
   (try
     (let [db (get-db options)
-          q (str "UPDATE releases SET " field " = ? WHERE id = ?")]
-      (sql/execute! db [q value id])
-      (println "OK"))
+          valid-fields #{"ID" "Name" "Status" "UPC" "Catalogue" "ReleaseDate" "PromoLink" "Bandcamp"}]
+      (if (contains? valid-fields field)
+        (let [q (str "UPDATE releases SET " field " = ? WHERE id = ?")]
+          (sql/execute! db [q value id])
+          (println "OK"))
+        (println "Invalid field. Valid fields are:" (str/join ", " valid-fields))))
     (catch Exception e
       (println (.getMessage e)))))
 
