@@ -6,7 +6,7 @@
             [babashka.fs :as fs]
             [pod.babashka.go-sqlite3 :as sql]))
 
-(def mmgt-version "0.1.1")
+(def mmgt-version "0.1.2")
 
 (def cli-options
   [["-h" "--help" "Show help information"]
