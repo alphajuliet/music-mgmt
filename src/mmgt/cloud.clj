@@ -11,9 +11,9 @@
 (def cli-options
   [["-h" "--help" "Show help information"]
    ["-v" "--version" "Show version information"]
-   ["-f" "--format FORMAT" "Output format: json (default), edn, plain, or table"
-    :default "json"
-    :validate [#(contains? #{"json" "edn" "plain" "table"} %) "Must be one of: json, edn, plain, table"]]
+   ["-f" "--format FORMAT" "Output format: table (default), json, edn, or plain"
+    :default "table"
+    :validate [#(contains? #{"json" "edn" "plain" "table"} %) "Must be one of: table, json, edn, plain"]]
    ["-u" "--api-url URL" "API base URL"
     :default "https://music.cyjet.online/api/v1"]
    [nil "--verbose" "Enable verbose output"]])
@@ -75,7 +75,7 @@
 ;; Output functions
 (defn print-output
   "Print data according to the specified format"
-  [data & {:keys [format] :or {format "json"}}]
+  [data & {:keys [format] :or {format "table"}}]
   (println (output/format-output data format)))
 
 (defn handle-api-response
