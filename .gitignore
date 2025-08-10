@@ -3,5 +3,6 @@ venv/
 .calva/
 .clj-kondo/
 .lsp/
+.wrangler/
 node_modules/
 
