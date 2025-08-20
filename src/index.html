@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>music-mgmt</title>
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
+    <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.6/dist/htmx.min.js"></script>
+    <meta charset="utf-8"/>
+  </head>
+  <body>
+    <h1>music-mgmt</h1>
+    <div id="main">
+      <button onclick="loadData('releases')">Releases</button>
+      <button onclick="loadData('tracks')">Tracks</button>
+    </div>
+    <div id="output">
+    </div>
+    <script>
+      async function loadData(endpoint) {
+        try {
+          const response = await fetch(`https://music.cyjet.online/api/v1/${endpoint}`);
+          const data = await response.json();
+          document.getElementById('output').innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+        } catch (error) {
+          document.getElementById('output').innerHTML = '<p>Error: ' + error.message + '</p>';
+        }
+      }
+    </script>
+  </body>
+</html>
