@@ -376,6 +376,89 @@ class MusicAPI {
     }
   }
 
+  async getLinkedData(): Promise<Response> {
+    try {
+      const { results: releasesData } = await this.db.prepare("SELECT * FROM releases").all();
+      
+      const albums = [];
+      
+      for (const release of releasesData) {
+        const { results: tracks } = await this.db.prepare(`
+          SELECT tracks.*, instances.track_number 
+          FROM tracks 
+          JOIN instances ON tracks.id = instances.id 
+          WHERE instances.release = ? 
+          ORDER BY instances.track_number
+        `).bind(release.ID).all();
+        
+        const totalSeconds = tracks.reduce((total: number, track: any) => {
+          if (track.length) {
+            return total + mmssToSeconds(track.length);
+          }
+          return total;
+        }, 0);
+        
+        const albumData = {
+          "@type": "MusicAlbum",
+          "@id": `album:${release.ID}`,
+          "name": release.Name,
+          "albumReleaseType": release.Status === "Released" ? "AlbumRelease" : "AlbumRelease",
+          "datePublished": release.ReleaseDate,
+          "catalogNumber": release.Catalogue,
+          "gtin13": release.UPC,
+          "url": release.Bandcamp,
+          "duration": tracks.length > 0 ? `PT${secondsToMmss(totalSeconds)}` : undefined,
+          "track": tracks.map((track: any) => ({
+            "@type": "MusicRecording",
+            "@id": `track:${track.id}`,
+            "name": track.title,
+            "byArtist": {
+              "@type": "MusicGroup",
+              "name": track.artist
+            },
+            "position": track.track_number,
+            "duration": track.length ? `PT${track.length}` : undefined,
+            "datePublished": track.year?.toString(),
+            "recordingOf": {
+              "@type": "MusicComposition",
+              "name": track.title,
+              "composer": {
+                "@type": "Person",
+                "name": track.artist
+              }
+            },
+            "isrc": track.ISRC,
+            "genre": track.Genre,
+            "tempoMarking": track.bpm ? `${track.bpm} BPM` : undefined,
+            "recordingType": track.type === "Original" ? "StudioRecording" :
+                           track.type === "Remix" ? "RemixRecording" :
+                           track.type === "Live" ? "LiveRecording" : "StudioRecording"
+          }))
+        };
+        
+        // Remove undefined fields
+        Object.keys(albumData).forEach(key => {
+          if (albumData[key] === undefined) {
+            delete albumData[key];
+          }
+        });
+        
+        albums.push(albumData);
+      }
+      
+      const jsonldData = {
+        "@context": "https://schema.org",
+        "@type": "MusicGroup",
+        "name": "Cyjet",
+        "album": albums
+      };
+
+      return createSuccessResponse(jsonldData);
+    } catch (error) {
+      return createErrorResponse(`Linked data export failed: ${error}`, 500);
+    }
+  }
+
   async getVersion(): Promise<Response> {
     return new Response(JSON.stringify({
       version: '0.1.2',
@@ -538,6 +621,17 @@ export default {
         return response;
       }
 
+      if (pathname === '/api/v1/linked-data') {
+        if (method !== 'GET') {
+          const response = createErrorResponse('Method not allowed', 405);
+          Object.entries(corsHeaders).forEach(([key, value]) => response.headers.set(key, value));
+          return response;
+        }
+        const response = await api.getLinkedData();
+        Object.entries(corsHeaders).forEach(([key, value]) => response.headers.set(key, value));
+        return response;
+      }
+
       // Default response for unmatched routes
       const response = new Response(JSON.stringify({
         message: 'Music Management API v1.0.0',
@@ -556,7 +650,8 @@ export default {
           'PUT /api/v1/releases/{id}',
           'POST /api/v1/releases/{id}/tracks',
           'POST /api/v1/query',
-          'GET /api/v1/export'
+          'GET /api/v1/export',
+          'GET /api/v1/linked-data'
         ]
       }, null, 2), {
         headers: { 'Content-Type': 'application/json' }

@@ -217,6 +217,16 @@
         (println "Data exported to" filename))
       (println "Error:" (:message response)))))
 
+(defn linked-data
+  "Export releases and tracks as JSON-LD from cloud API"
+  [filename options]
+  (let [response (api-get "/linked-data" options)]
+    (if (:success response)
+      (do
+        (spit filename (json/generate-string response {:pretty true}))
+        (println "Linked data exported to" filename))
+      (println "Error:" (:message response)))))
+
 (defn usage [options-summary]
   (str "Music Management Cloud CLI
 
@@ -245,6 +255,7 @@ Commands:
 
     query <sql>                          Run SQL query on cloud database
     export-data <filename>               Export cloud data to file
+    linked-data <filename>               Export releases and tracks as JSON-LD
 
 Note: This CLI connects to the cloud API. Use mmgt.mm for local database access."))
 
@@ -288,6 +299,7 @@ Note: This CLI connects to the cloud API. Use mmgt.mm for local database access.
                 "release" (release (first cmd-args) (second cmd-args) (nth cmd-args 2) options)
                 "query" (query (str/join " " cmd-args) options)
                 "export-data" (export-data (first cmd-args) options)
+                "linked-data" (linked-data (first cmd-args) options)
                 ;; else
                 (do
                   (println "Unknown command:" cmd)

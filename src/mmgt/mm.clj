@@ -211,6 +211,62 @@
     (spit filename (json/generate-string all-data {:pretty true}))
     (println "Data exported to" filename)))
 
+(defn linked-data [filename options]
+  "Export releases and tracks as JSON-LD using schema.org ontology"
+  (let [db (get-db options)
+        releases-data (sql/query db "SELECT * FROM releases")
+        albums (for [release releases-data]
+                 (let [tracks (sql/query db ["SELECT tracks.*, instances.track_number 
+                                             FROM tracks 
+                                             JOIN instances ON tracks.id = instances.id 
+                                             WHERE instances.release = ? 
+                                             ORDER BY instances.track_number" (:ID release)])
+                       duration (->> tracks
+                                     (map :length)
+                                     (filter #(not (nil? %)))
+                                     (map mmss-to-seconds)
+                                     (reduce + 0)
+                                     seconds-to-mmss)]
+                   {"@type" "MusicAlbum"
+                    "@id" (str "album:" (:ID release))
+                    "name" (:Name release)
+                    "albumReleaseType" (case (:Status release)
+                                        "Released" "AlbumRelease"
+                                        "WIP" "AlbumRelease"
+                                        "AlbumRelease")
+                    "datePublished" (:ReleaseDate release)
+                    "catalogNumber" (:Catalogue release)
+                    "gtin13" (:UPC release)
+                    "url" (:Bandcamp release)
+                    "duration" (when (pos? (count tracks)) (str "PT" duration))
+                    "track" (for [track tracks]
+                             {"@type" "MusicRecording"
+                              "@id" (str "track:" (:id track))
+                              "name" (:title track)
+                              "byArtist" {"@type" "MusicGroup"
+                                          "name" (:artist track)}
+                              "position" (:track_number track)
+                              "duration" (when (:length track) (str "PT" (:length track)))
+                              "datePublished" (str (:year track))
+                              "recordingOf" {"@type" "MusicComposition"
+                                             "name" (:title track)
+                                             "composer" {"@type" "Person"
+                                                         "name" (:artist track)}}
+                              "isrc" (:ISRC track)
+                              "genre" (:Genre track)
+                              "tempoMarking" (when (:bpm track) (str (:bpm track) " BPM"))
+                              "recordingType" (case (:type track)
+                                               "Original" "StudioRecording"
+                                               "Remix" "RemixRecording"
+                                               "Live" "LiveRecording"
+                                               "StudioRecording")})}))
+        jsonld-data {"@context" "https://schema.org"
+                     "@type" "MusicGroup"
+                     "name" "Cyjet"
+                     "album" albums}]
+    (spit filename (json/generate-string jsonld-data {:pretty true}))
+    (println "Linked data exported to" filename)))
+
 (defn backup
   "Create a backup of the database file to the nominated folder"
   [options]
@@ -251,6 +307,7 @@ Commands:
 
     query <sql>                          Run SQL query
     export-data <filename>               Export data to file
+    linked-data <filename>               Export releases and tracks as JSON-LD
     backup                               Create a backup of the database"))
 
 (defn help
@@ -292,6 +349,7 @@ Commands:
                 "release" (release (first cmd-args) (second cmd-args) (nth cmd-args 2) options)
                 "query" (query (str/join " " cmd-args) options)
                 "export-data" (export-data (first cmd-args) options)
+                "linked-data" (linked-data (first cmd-args) options)
                 "backup" (backup {:db-file (:db options) :backup-dir (:backup-dir options)})
                 ;; else
                 (do
