@@ -27,7 +27,7 @@ All components work with SQLite/D1 databases tracking tracks, releases, and thei
 - **API URL**: Configurable via `--api-url` flag or `MUSIC_API_URL` environment variable
 
 ### Cloudflare Worker REST API
-- **Worker script**: `src/index.ts` - TypeScript worker providing comprehensive REST API endpoints
+- **Worker script**: `src/api/index.ts` - TypeScript worker providing comprehensive REST API endpoints
 - **Configuration**: `wrangler.toml` - Cloudflare Worker config with D1 database binding
 - **Database**: Cloudflare D1 database named "cyjet-music"
 - **API Version**: 1.0.0 with comprehensive CRUD operations for tracks and releases
@@ -184,7 +184,7 @@ The Cloudflare Worker provides a comprehensive REST API at `/api/v1/`:
 - **Local CLI**: `src/mmgt/mm.clj`
 - **Cloud CLI**: `src/mmgt/cloud.clj`
 - **Output Formatting**: `src/mmgt/output.clj`
-- **REST API Worker**: `src/index.ts`
+- **REST API Worker**: `src/api/index.ts`
 - **Web Frontend**: `src/index.html`
 - **Database Schema**: `data/schema.sql`
 - **Local Database**: `data/tracks.db`

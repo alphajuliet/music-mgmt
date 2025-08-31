@@ -1,6 +1,6 @@
 name = "music-mgmt"
 compatibility_date = "2025-08-10"
-main = "src/index.ts"
+main = "src/api/index.ts"
 
 [[d1_databases]]
 binding = "DB"
