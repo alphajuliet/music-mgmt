@@ -105,8 +105,9 @@
         rel (sql/query db ["SELECT * FROM releases WHERE id = ?" id])
         duration (->> tracks
                       (map :length)
+                      (filter #(not (nil? %)))
                       (map mmss-to-seconds)
-                      (reduce +)
+                      (reduce + 0)
                       seconds-to-mmss)]
     (print-output (-> rel
                       first
