@@ -17,6 +17,10 @@
 (def cache (atom {:tracks [] :releases []}))
 
 (def track-id-commands #{"view-track" "update-track" "release"})
+(def release-id-commands #{"view-release" "tracks" "update-release"})
+(def track-field-names ["title" "type" "artist" "year" "length" "bpm" "ISRC" "Genre" "song_fname"])
+(def release-field-names ["Name" "Status" "UPC" "Catalogue" "ReleaseDate" "PromoLink" "Bandcamp"])
+(def search-field-names ["artist" "type" "title" "year"])
 
 (defn refresh-cache!
   "Fetch tracks and releases from the API and update the cache."
@@ -134,11 +138,42 @@
           (doseq [track (:tracks @cache)]
             (let [title (:title track)]
               (when (.startsWith (str/lower-case title) lword)
-                ;; Quote titles containing spaces
                 (let [display-val (if (str/includes? title " ")
                                    (str "\"" title "\"")
                                    title)]
-                  (.add candidates (Candidate. display-val)))))))))))
+                  (.add candidates (Candidate. display-val))))))
+
+          ;; Word 1 for release-ID commands: complete release IDs
+          (and (= word-index 1) (contains? release-id-commands command))
+          (doseq [release (:releases @cache)]
+            (let [id (str (:ID release))]
+              (when (.startsWith (str/lower-case id) lword)
+                (.add candidates (Candidate. id)))))
+
+          ;; Word 1 for search: complete field names
+          (and (= word-index 1) (= command "search"))
+          (doseq [field search-field-names]
+            (when (.startsWith field lword)
+              (.add candidates (Candidate. field))))
+
+          ;; Word 2 for release command: complete release IDs
+          (and (= word-index 2) (= command "release"))
+          (doseq [release (:releases @cache)]
+            (let [id (str (:ID release))]
+              (when (.startsWith (str/lower-case id) lword)
+                (.add candidates (Candidate. id)))))
+
+          ;; Word 2 for update-track: complete track field names
+          (and (= word-index 2) (= command "update-track"))
+          (doseq [field track-field-names]
+            (when (.startsWith field lword)
+              (.add candidates (Candidate. field))))
+
+          ;; Word 2 for update-release: complete release field names
+          (and (= word-index 2) (= command "update-release"))
+          (doseq [field release-field-names]
+            (when (.startsWith field lword)
+              (.add candidates (Candidate. field)))))))))
 
 (defn -main [& args]
   (let [api-url (or (first args)
