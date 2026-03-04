@@ -3,9 +3,9 @@
             [mmgt.cloud :as cloud]))
 
 (import [org.jline.terminal TerminalBuilder]
-        [org.jline.reader LineReaderBuilder
-                          EndOfFileException
-                          UserInterruptException])
+        [org.jline.reader LineReaderBuilder Completer Candidate
+                          EndOfFileException UserInterruptException
+                          LineReader$Option])
 
 (def mmgt-version "0.1.2")
 
@@ -70,6 +70,18 @@
       "linked-data" (cloud/linked-data (first args) options)
       (println "Unknown command:" cmd ". Type 'help' for available commands."))))
 
+(defn make-completer
+  "Create a completer that completes command names on word index 0."
+  []
+  (reify Completer
+    (complete [_this _reader line candidates]
+      (let [word (.word line)
+            word-index (.wordIndex line)]
+        (when (zero? word-index)
+          (doseq [cmd commands]
+            (when (.startsWith ^String cmd word)
+              (.add candidates (Candidate. ^String cmd)))))))))
+
 (defn -main [& args]
   (let [api-url (or (first args)
                     (System/getenv "MUSIC_API_URL")
@@ -78,9 +90,13 @@
         terminal (-> (TerminalBuilder/builder)
                      (.system true)
                      (.build))
+        completer (make-completer)
         reader (-> (LineReaderBuilder/builder)
                    (.terminal terminal)
+                   (.completer completer)
                    (.build))]
+    (.setOpt reader LineReader$Option/AUTO_LIST)
+    (.setOpt reader LineReader$Option/AUTO_MENU)
     (println (str "Music Management Shell v" mmgt-version))
     (println (str "Connected to " api-url))
     (println "Type 'help' for commands, TAB for completion")
