@@ -14,6 +14,21 @@
    "update-track" "releases" "view-release" "tracks" "add-release"
    "update-release" "release" "query" "export-data" "linked-data"])
 
+(def cache (atom {:tracks [] :releases []}))
+
+(def track-id-commands #{"view-track" "update-track" "release"})
+
+(defn refresh-cache!
+  "Fetch tracks and releases from the API and update the cache."
+  [options]
+  (try
+    (let [tracks (cloud/api-get "/tracks" options)
+          releases (cloud/api-get "/releases" options)]
+      (reset! cache {:tracks (if (sequential? tracks) tracks [])
+                     :releases (if (sequential? releases) releases [])}))
+    (catch Exception e
+      (println "Warning: could not refresh cache:" (.getMessage e)))))
+
 (defn parse-args
   "Parse a command line string into tokens, respecting quoted strings."
   [line]
@@ -46,6 +61,25 @@
     help                                    Show this help
     quit                                    Exit (also Ctrl-D)"))
 
+(defn resolve-track
+  "Resolve a track title or ID to a numeric ID string.
+   If input is numeric, return it as-is.
+   Otherwise search the cache for matching titles."
+  [input]
+  (if (re-matches #"\d+" input)
+    input
+    (let [matches (filter #(= (str/lower-case (:title %))
+                              (str/lower-case input))
+                          (:tracks @cache))]
+      (case (count matches)
+        0 (do (println (str "No track found matching \"" input "\""))
+              nil)
+        1 (str (:id (first matches)))
+        (do (println "Multiple tracks match:")
+            (doseq [t matches]
+              (println (str "  " (:id t) ": " (:title t))))
+            nil)))))
+
 (defn dispatch
   "Dispatch a parsed command to the appropriate cloud.clj function."
   [tokens options]
@@ -57,30 +91,54 @@
       "releases" (cloud/releases options)
       "lookup" (cloud/lookup (first args) options)
       "search" (cloud/search (first args) (second args) options)
-      "view-track" (cloud/view-track (first args) options)
+      "view-track" (when-let [id (resolve-track (first args))]
+                     (cloud/view-track id options))
       "view-release" (cloud/view-release (first args) options)
       "tracks" (cloud/tracks (first args) options)
-      "add-track" (cloud/add-track (first args) options)
-      "update-track" (cloud/update-track (first args) (second args) (nth args 2) options)
-      "add-release" (cloud/add-release (first args) options)
-      "update-release" (cloud/update-release (first args) (second args) (nth args 2) options)
-      "release" (cloud/release (first args) (second args) (nth args 2) options)
+      "add-track" (do (cloud/add-track (first args) options)
+                      (refresh-cache! options))
+      "update-track" (when-let [id (resolve-track (first args))]
+                       (cloud/update-track id (second args) (nth args 2) options)
+                       (refresh-cache! options))
+      "add-release" (do (cloud/add-release (first args) options)
+                        (refresh-cache! options))
+      "update-release" (do (cloud/update-release (first args) (second args) (nth args 2) options)
+                           (refresh-cache! options))
+      "release" (when-let [id (resolve-track (first args))]
+                  (cloud/release id (second args) (nth args 2) options)
+                  (refresh-cache! options))
       "query" (cloud/query (str/join " " args) options)
       "export-data" (cloud/export-data (first args) options)
       "linked-data" (cloud/linked-data (first args) options)
       (println "Unknown command:" cmd ". Type 'help' for available commands."))))
 
 (defn make-completer
-  "Create a completer that completes command names on word index 0."
+  "Create a completer that handles command names and context-dependent arguments."
   []
   (reify Completer
     (complete [_this _reader line candidates]
       (let [word (.word line)
-            word-index (.wordIndex line)]
-        (when (zero? word-index)
+            word-index (.wordIndex line)
+            words (.words line)
+            command (when (pos? word-index) (first words))
+            lword (str/lower-case word)]
+        (cond
+          ;; Word 0: complete command names
+          (zero? word-index)
           (doseq [cmd commands]
             (when (.startsWith ^String cmd word)
-              (.add candidates (Candidate. ^String cmd)))))))))
+              (.add candidates (Candidate. ^String cmd))))
+
+          ;; Word 1 for track-ID commands: complete track titles
+          (and (= word-index 1) (contains? track-id-commands command))
+          (doseq [track (:tracks @cache)]
+            (let [title (:title track)]
+              (when (.startsWith (str/lower-case title) lword)
+                ;; Quote titles containing spaces
+                (let [display-val (if (str/includes? title " ")
+                                   (str "\"" title "\"")
+                                   title)]
+                  (.add candidates (Candidate. display-val)))))))))))
 
 (defn -main [& args]
   (let [api-url (or (first args)
@@ -99,6 +157,10 @@
     (.setOpt reader LineReader$Option/AUTO_MENU)
     (println (str "Music Management Shell v" mmgt-version))
     (println (str "Connected to " api-url))
+    (print "Loading data... ") (flush)
+    (refresh-cache! options)
+    (println (str "OK (" (count (:tracks @cache)) " tracks, "
+                  (count (:releases @cache)) " releases)"))
     (println "Type 'help' for commands, TAB for completion")
     (println)
     (try
