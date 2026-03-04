@@ -1,12 +1,31 @@
 # Music Management System
 
-A dual-architecture music database management system with both CLI and REST API interfaces.
+A multi-interface music database management system with interactive shell, CLI, REST API, and web frontend.
 
 ## Components
 
-### 1. CLI Application (Babashka)
-A Babashka script to manage your database of tracks and releases locally. Output is JSON by default 
-but also supports EDN, ASCII tables, and plain text. JSON is best for piping into `jq` or 
+### 1. Interactive Shell (Primary)
+A JLine3-based interactive REPL for managing your cloud music database with tab-completion, command history, and smart title-to-ID resolution.
+
+**Launch:**
+```bash
+bb shell
+# or
+bb -m mmgt.shell
+```
+
+**Features:**
+- **Tab-completion** for commands, track titles, release IDs, and field names
+- **Title-to-ID resolution** - use track titles instead of numeric IDs (e.g., `view-track "Neon Lights"` instead of `view-track 47`)
+- **Command history** - up-arrow recalls previous commands across sessions (`~/.mmgt_history`)
+- **Table output** by default (vs JSON)
+- **Custom API URL** - specify via CLI argument or `MUSIC_API_URL` environment variable
+
+For more information, run `help` inside the shell.
+
+### 2. Local CLI Application (Babashka)
+A Babashka script to manage your local SQLite database. Output is JSON by default
+but also supports EDN, ASCII tables, and plain text. JSON is best for piping into `jq` or
 other processing.
 
 For CLI usage information, run:
@@ -14,8 +33,74 @@ For CLI usage information, run:
 bb -m mmgt.mm --help
 ```
 
-### 2. REST API (Cloudflare Worker)
-A TypeScript-based Cloudflare Worker providing HTTP REST access to the same database schema.
+### 3. Cloud CLI Application (Babashka)
+A non-interactive CLI that connects to the REST API. Same commands as the local CLI but operates on the cloud database.
+
+```bash
+bb -m mmgt.cloud all-tracks
+bb -m mmgt.cloud --api-url "https://custom-api.com/api/v1" all-tracks
+```
+
+### 4. REST API (Cloudflare Worker)
+A TypeScript-based Cloudflare Worker providing HTTP REST access to the database schema.
+
+### 5. Web Frontend
+A simple HTMX-powered HTML interface (`src/index.html`) for browsing releases and tracks.
+
+## Interactive Shell Usage
+
+### Launch the Shell
+```bash
+bb shell                    # Uses MUSIC_API_URL env var or default
+bb -m mmgt.shell "https://custom-api.com/api/v1"  # With custom API URL
+```
+
+### Available Commands
+
+**Track Management:**
+- `all-tracks` - List all tracks
+- `lookup <title>` - Search tracks by title
+- `search <field> <value>` - Search tracks by field (artist, type, title, year)
+- `view-track <title-or-id>` - View a track (use title or numeric ID)
+- `add-track <title>` - Create a new track
+- `update-track <title-or-id> <field> <value>` - Update track information
+
+**Release Management:**
+- `releases` - List all releases
+- `view-release <id>` - View a release with its tracks and duration
+- `tracks <release-id>` - List tracks in a release
+- `add-release <id>` - Create a new release
+- `update-release <id> <field> <value>` - Update release information
+- `release <track> <release-id> <track#>` - Add a track to a release
+
+**Database & Utilities:**
+- `query <sql>` - Execute raw SQL query
+- `export-data <filename>` - Export all data to JSON file
+- `linked-data <filename>` - Export data as JSON-LD (schema.org format)
+- `refresh` - Reload track/release data from API
+- `help` - Show command help
+- `quit` - Exit the shell (also Ctrl-D)
+
+### Tab Completion Examples
+- Type `vi` + TAB → autocomplete to `view-track`
+- Type `view-track "` + TAB → list available track titles
+- Type `view-release ` + TAB → list available release IDs
+- Type `update-track 123 ` + TAB → list available field names
+
+### Examples
+```
+mmgt> all-tracks
+mmgt> lookup "neon lights"
+mmgt> view-track "My Song"  # Uses title-to-ID resolution
+mmgt> search artist "Cyjet"
+mmgt> add-track "New Track"
+mmgt> update-track "My Song" length "3:45"
+mmgt> releases
+mmgt> view-release ALBUM001
+mmgt> release 42 ALBUM001 1  # Add track 42 to ALBUM001 as track #1
+mmgt> export-data backup.json
+mmgt> quit
+```
 
 ## REST API Documentation
 
@@ -243,6 +328,68 @@ Common HTTP status codes:
 - `404`: Not Found
 - `405`: Method Not Allowed
 - `500`: Internal Server Error
+
+## Local CLI Application (Babashka)
+
+The local CLI manages a SQLite database at `data/tracks.db` and outputs in JSON format by default.
+
+### Basic Commands
+```bash
+# Show help and available commands
+bb -m mmgt.mm --help
+
+# Track operations
+bb -m mmgt.mm all-tracks
+bb -m mmgt.mm add-track "Track Title"
+bb -m mmgt.mm view-track 123
+bb -m mmgt.mm update-track 123 length "3:45"
+bb -m mmgt.mm lookup "song title"
+bb -m mmgt.mm search artist "Cyjet"
+
+# Release operations
+bb -m mmgt.mm releases
+bb -m mmgt.mm add-release "ALBUM001"
+bb -m mmgt.mm view-release "ALBUM001"
+bb -m mmgt.mm tracks "ALBUM001"
+bb -m mmgt.mm release 123 "ALBUM001" 1  # Add track 123 as track #1
+
+# Update operations
+bb -m mmgt.mm update-release "ALBUM001" Name "Album Title"
+bb -m mmgt.mm update-track 123 artist "New Artist"
+
+# Output formats (defaults to JSON)
+bb -m mmgt.mm all-tracks --format table
+bb -m mmgt.mm all-tracks --format edn
+bb -m mmgt.mm all-tracks --format plain
+
+# Database operations
+bb -m mmgt.mm query "SELECT * FROM tracks WHERE year = 2024"
+bb -m mmgt.mm backup
+bb -m mmgt.mm export-data export.json
+```
+
+## Cloud CLI Application (Babashka)
+
+The cloud CLI connects to the REST API and uses table format by default.
+
+### Basic Commands
+```bash
+# Show help
+bb -m mmgt.cloud --help
+
+# Same commands as local CLI but connects to the REST API
+bb -m mmgt.cloud all-tracks
+bb -m mmgt.cloud add-track "Track Title"
+bb -m mmgt.cloud releases --format json
+
+# Custom API URL
+bb -m mmgt.cloud --api-url "https://custom-api.com/api/v1" all-tracks
+
+# Query and export
+bb -m mmgt.cloud query "SELECT * FROM tracks WHERE year = 2024"
+bb -m mmgt.cloud export-data cloud-export.json
+bb -m mmgt.cloud linked-data export.jsonld
+```
 
 ### Development and Deployment
 

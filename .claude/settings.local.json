@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:blog.michielborkent.nl)",
+      "WebFetch(domain:github.com)",
+      "Bash(bb:*)",
+      "Bash(curl:*)"
+    ]
+  }
+}
