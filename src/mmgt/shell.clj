@@ -5,14 +5,14 @@
 (import [org.jline.terminal TerminalBuilder]
         [org.jline.reader LineReaderBuilder Completer Candidate
                           EndOfFileException UserInterruptException
-                          LineReader$Option])
+                          LineReader$Option LineReader])
 
 (def mmgt-version "0.1.2")
 
 (def commands
   ["help" "quit" "all-tracks" "lookup" "search" "view-track" "add-track"
    "update-track" "releases" "view-release" "tracks" "add-release"
-   "update-release" "release" "query" "export-data" "linked-data"])
+   "update-release" "release" "query" "export-data" "linked-data" "refresh"])
 
 (def cache (atom {:tracks [] :releases []}))
 
@@ -61,6 +61,7 @@
     query <sql>                             Run SQL query
     export-data <filename>                  Export data to file
     linked-data <filename>                  Export as JSON-LD
+    refresh                                 Reload track/release data from API
 
     help                                    Show this help
     quit                                    Exit (also Ctrl-D)"))
@@ -114,6 +115,10 @@
       "query" (cloud/query (str/join " " args) options)
       "export-data" (cloud/export-data (first args) options)
       "linked-data" (cloud/linked-data (first args) options)
+      "refresh" (do (print "Refreshing... ") (flush)
+                    (refresh-cache! options)
+                    (println (str "OK (" (count (:tracks @cache)) " tracks, "
+                                  (count (:releases @cache)) " releases)")))
       (println "Unknown command:" cmd ". Type 'help' for available commands."))))
 
 (defn make-completer
@@ -180,6 +185,7 @@
                     (System/getenv "MUSIC_API_URL")
                     "https://music.cyjet.online/api/v1")
         options {:format "table" :api-url api-url}
+        history-file (str (System/getProperty "user.home") "/.mmgt_history")
         terminal (-> (TerminalBuilder/builder)
                      (.system true)
                      (.build))
@@ -190,6 +196,7 @@
                    (.build))]
     (.setOpt reader LineReader$Option/AUTO_LIST)
     (.setOpt reader LineReader$Option/AUTO_MENU)
+    (.setVariable reader LineReader/HISTORY_FILE history-file)
     (println (str "Music Management Shell v" mmgt-version))
     (println (str "Connected to " api-url))
     (print "Loading data... ") (flush)
