@@ -16,7 +16,7 @@
 
 (def cache (atom {:tracks [] :releases []}))
 
-(def track-id-commands #{"view-track" "update-track" "release"})
+(def track-id-commands #{"view-track" "update-track" "release" "lookup"})
 (def release-id-commands #{"view-release" "tracks" "update-release"})
 (def track-field-names ["title" "type" "artist" "year" "length" "bpm" "ISRC" "Genre" "song_fname"])
 (def release-field-names ["Name" "Status" "UPC" "Catalogue" "ReleaseDate" "PromoLink" "Bandcamp"])
@@ -28,10 +28,14 @@
   (try
     (let [tracks (cloud/api-get "/tracks" options)
           releases (cloud/api-get "/releases" options)]
+      (when (and (map? tracks) (false? (:success tracks)))
+        (println "\nWarning (tracks):" (:message tracks)))
+      (when (and (map? releases) (false? (:success releases)))
+        (println "\nWarning (releases):" (:message releases)))
       (reset! cache {:tracks (if (sequential? tracks) tracks [])
                      :releases (if (sequential? releases) releases [])}))
     (catch Exception e
-      (println "Warning: could not refresh cache:" (.getMessage e)))))
+      (println "\nWarning: could not refresh cache:" (.getMessage e)))))
 
 (defn parse-args
   "Parse a command line string into tokens, respecting quoted strings."
@@ -158,7 +162,7 @@
           ;; Word 1 for search: complete field names
           (and (= word-index 1) (= command "search"))
           (doseq [field search-field-names]
-            (when (.startsWith field lword)
+            (when (.startsWith (str/lower-case field) lword)
               (.add candidates (Candidate. field))))
 
           ;; Word 2 for release command: complete release IDs
@@ -171,17 +175,17 @@
           ;; Word 2 for update-track: complete track field names
           (and (= word-index 2) (= command "update-track"))
           (doseq [field track-field-names]
-            (when (.startsWith field lword)
+            (when (.startsWith (str/lower-case field) lword)
               (.add candidates (Candidate. field))))
 
           ;; Word 2 for update-release: complete release field names
           (and (= word-index 2) (= command "update-release"))
           (doseq [field release-field-names]
-            (when (.startsWith field lword)
+            (when (.startsWith (str/lower-case field) lword)
               (.add candidates (Candidate. field)))))))))
 
 (defn -main [& args]
-  (let [api-url (or (first args)
+  (let [api-url (or (when (string? (first args)) (first args))
                     (System/getenv "MUSIC_API_URL")
                     "https://music.cyjet.online/api/v1")
         options {:format "table" :api-url api-url}

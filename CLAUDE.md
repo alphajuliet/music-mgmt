@@ -4,24 +4,34 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This project has a tri-architecture music database management system:
-1. **Primary**: Babashka-based CLI application (`src/mmgt/mm.clj`) for local music database management
-2. **Secondary**: Babashka-based cloud CLI (`src/mmgt/cloud.clj`) that connects to the REST API
-3. **REST API**: Cloudflare Worker (`src/index.ts`) providing HTTP REST access to the same database schema
-4. **Web Frontend**: Simple HTML interface (`src/index.html`) using HTMX for API interaction
+This project has a music database management system with multiple interfaces:
+1. **Interactive Shell**: JLine3-based REPL (`src/mmgt/shell.clj`) with tab-completion — the primary way to manage the cloud database
+2. **Local CLI**: Babashka-based CLI (`src/mmgt/mm.clj`) for local SQLite database management
+3. **Cloud CLI**: Babashka-based CLI (`src/mmgt/cloud.clj`) that connects to the REST API (non-interactive)
+4. **REST API**: Cloudflare Worker (`src/api/index.ts`) providing HTTP REST access to the same database schema
+5. **Web Frontend**: Simple HTML interface (`src/index.html`) using HTMX for API interaction
 
 All components work with SQLite/D1 databases tracking tracks, releases, and their relationships through an instances table that maps tracks to releases with track numbers.
 
 ## Core Architecture
 
-### Local CLI Application (Primary)
+### Interactive Shell (Primary)
+- **Main entry point**: `src/mmgt/shell.clj` - JLine3-based interactive REPL
+- **Launch**: `bb shell` or `bb -m mmgt.shell`
+- **Features**: Tab-completion for commands, track titles, release IDs, and field names; title-to-ID resolution; persistent command history (`~/.mmgt_history`)
+- **Backend**: Connects to the cloud REST API via `cloud.clj`
+- **Default format**: Table output
+- **API URL**: Configurable via CLI arg or `MUSIC_API_URL` environment variable
+- **JLine3**: Bundled in Babashka 1.12.215+, no extra dependencies needed. Built-in completer classes aren't in Babashka's allowlist; all completers use `reify Completer`.
+
+### Local CLI Application
 - **Main entry point**: `src/mmgt/mm.clj` - Contains the CLI interface and all local database operations
 - **Output formatting**: `src/mmgt/output.clj` - Handles multiple output formats (JSON, EDN, plain text, ASCII tables)
 - **Configuration**: `bb.edn` - Babashka project config with SQLite pod and HTTP client dependencies
 - **Database**: Local SQLite at `data/tracks.db`
 
-### Cloud CLI Application (Secondary)
-- **Main entry point**: `src/mmgt/cloud.clj` - CLI interface that makes HTTP requests to the REST API
+### Cloud CLI Application
+- **Main entry point**: `src/mmgt/cloud.clj` - Non-interactive CLI that makes HTTP requests to the REST API
 - **Uses**: Same output formatting as local CLI but connects to remote API
 - **Default format**: Table output (vs JSON for local CLI)
 - **API URL**: Configurable via `--api-url` flag or `MUSIC_API_URL` environment variable
@@ -47,6 +57,21 @@ All components work with SQLite/D1 databases tracking tracks, releases, and thei
   - `released` - View joining all three tables for complete track-release information
 
 ## Running the Application
+
+### Interactive Shell (Recommended)
+```bash
+# Launch the interactive shell
+bb shell
+
+# Or with a custom API URL
+bb -m mmgt.shell "https://custom-api.com/api/v1"
+```
+
+The shell provides a `mmgt>` prompt with:
+- **Tab-completion**: Commands, track titles, release IDs, field names
+- **Title-to-ID resolution**: Use track titles instead of numeric IDs (e.g. `view-track "Neon Lights"` instead of `view-track 47`)
+- **Command history**: Up-arrow recalls previous commands across sessions
+- **Available commands**: `help`, `all-tracks`, `lookup`, `search`, `view-track`, `add-track`, `update-track`, `releases`, `view-release`, `tracks`, `add-release`, `update-release`, `release`, `query`, `export-data`, `linked-data`, `refresh`, `quit`
 
 ### Local CLI Commands (Babashka)
 ```bash
@@ -169,18 +194,20 @@ The Cloudflare Worker provides a comprehensive REST API at `/api/v1/`:
   - Local CLI defaults to JSON format
   - Cloud CLI defaults to table format
   - Both support json, edn, plain, and table formats
-- **Version**: Current version is "0.1.2" (defined in both CLI main files)
+- **Version**: Current version is "0.1.2" (defined in CLI main files and shell)
 - **API Version**: REST API is version "1.0.0"
+- **Interactive Shell**: Uses JLine3 bundled in Babashka. The completion cache is an atom refreshed after mutating commands. When using `exec` in bb tasks, args may contain non-string values — always check `(string? (first args))` before using as API URL.
 
 ## Configuration Files
 
-- `bb.edn` - Babashka project configuration with dependencies
+- `bb.edn` - Babashka project configuration with dependencies and task aliases (`bb shell`)
 - `wrangler.toml` - Cloudflare Worker configuration with D1 database binding
 - `package.json` - Minimal Node.js config for Wrangler CLI tool
 - `data/schema.sql` - Database schema definition for both local SQLite and cloud D1
 
 ## Key File Locations
 
+- **Interactive Shell**: `src/mmgt/shell.clj`
 - **Local CLI**: `src/mmgt/mm.clj`
 - **Cloud CLI**: `src/mmgt/cloud.clj`
 - **Output Formatting**: `src/mmgt/output.clj`
@@ -189,3 +216,5 @@ The Cloudflare Worker provides a comprehensive REST API at `/api/v1/`:
 - **Database Schema**: `data/schema.sql`
 - **Local Database**: `data/tracks.db`
 - **Backup Directory**: `data/backup/`
+- **Shell History**: `~/.mmgt_history`
+- **Design Docs**: `docs/plans/`
