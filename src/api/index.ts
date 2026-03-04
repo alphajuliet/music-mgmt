@@ -565,27 +565,26 @@ export default {
         return response;
       }
 
+      // Release tracks sub-endpoint (must be checked before individual release)
+      const tracksMatch = pathname.match(/^\/api\/v1\/releases\/(.+)\/tracks$/);
+      if (tracksMatch) {
+        const releaseId = tracksMatch[1];
+        let response;
+        if (method === 'GET') {
+          response = await api.getReleaseTracks(releaseId);
+        } else if (method === 'POST') {
+          response = await api.addTrackToRelease(releaseId, request);
+        } else {
+          response = createErrorResponse('Method not allowed', 405);
+        }
+        Object.entries(corsHeaders).forEach(([key, value]) => response.headers.set(key, value));
+        return response;
+      }
+
       // Individual release endpoint
       const releaseMatch = pathname.match(/^\/api\/v1\/releases\/(.+)$/);
       if (releaseMatch) {
         const releaseId = releaseMatch[1];
-        
-        // Check for tracks sub-endpoint
-        const tracksMatch = pathname.match(/^\/api\/v1\/releases\/(.+)\/tracks$/);
-        if (tracksMatch) {
-          let response;
-          if (method === 'GET') {
-            response = await api.getReleaseTracks(releaseId);
-          } else if (method === 'POST') {
-            response = await api.addTrackToRelease(releaseId, request);
-          } else {
-            response = createErrorResponse('Method not allowed', 405);
-          }
-          Object.entries(corsHeaders).forEach(([key, value]) => response.headers.set(key, value));
-          return response;
-        }
-        
-        // Main release endpoint
         let response;
         if (method === 'GET') {
           response = await api.getRelease(releaseId);
