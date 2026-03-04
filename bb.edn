@@ -1,3 +1,5 @@
 {:paths ["src"]
  :deps {org.babashka/http-client {:mvn/version "0.4.22"}}
- :pods {org.babashka/go-sqlite3 {:version "0.2.4"}}}
+ :pods {org.babashka/go-sqlite3 {:version "0.2.4"}}
+ :tasks {shell {:doc "Launch interactive shell"
+                :task (exec 'mmgt.shell/-main)}}}
